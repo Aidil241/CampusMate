@@ -1,4 +1,4 @@
-const CACHE_NAME = 'campusmate-v1.1';
+const CACHE_NAME = 'campusmate-v1.2';
 const ASSETS = [
   './index.html',
   './style.css',
