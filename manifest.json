@@ -1,0 +1,20 @@
+{
+  "name": "CampusMate",
+  "short_name": "CampusMate",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#F6F7FB",
+  "theme_color": "#4F46E5",
+  "icons": [
+    {
+      "src": "https://via.placeholder.com/192/4F46E5/FFFFFF?text=CM",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "https://via.placeholder.com/512/4F46E5/FFFFFF?text=CM",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

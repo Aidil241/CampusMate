@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="id" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CampusMate — Pendamping Akademik</title>
+  
+  <link rel="manifest" href="manifest.json">
+  
+  <!-- Font -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  
+  <!-- Tailwind CSS & DaisyUI CDN (Tanpa perlu instalasi Node.js/npm) -->
+  <link href="https://cdn.jsdelivr.net/npm/daisyui@4.7.2/dist/full.min.css" rel="stylesheet" type="text/css" />
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Konfigurasi Warna Tema Sesuai Desain Asli -->
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: '#4F46E5',
+            'brand-dark': '#4338CA',
+          },
+          fontFamily: {
+            display: ['Plus Jakarta Sans', 'sans-serif'],
+            body: ['Inter', 'sans-serif'],
+          }
+        }
+      }
+    }
+  </script>
+</head>
+<body class="bg-base-200 font-body text-base-content antialiased flex justify-center min-h-screen">
+
+  <!-- Frame Perangkat (Responsive Container) -->
+  <div id="app" class="w-full max-w-[480px] min-h-screen bg-base-100 relative flex flex-col sm:my-4 sm:min-h-[840px] sm:max-h-[90vh] sm:rounded-[36px] sm:shadow-2xl overflow-hidden border-base-300">
+    
+    <div class="toast toast-top toast-center z-50" id="toastStack"></div>
+    <div class="topbar sticky top-0 z-20 p-4 bg-base-100/80 backdrop-blur border-b border-base-200" id="topbar"></div>
+    
+    <!-- Area Konten Utama -->
+    <main id="page" class="flex-1 overflow-y-auto p-4 pb-28"></main>
+
+    <!-- FAB Button -->
+    <button class="btn btn-primary btn-circle btn-lg fixed sm:absolute right-5 bottom-24 shadow-lg z-30 hidden" id="fabBtn"></button>
+
+    <!-- Bottom Navigation -->
+    <nav class="btm-nav btm-nav-sm border-t border-base-200 bg-base-100 z-40 max-w-[480px] mx-auto" id="bottomnav"></nav>
+
+    <!-- Bottom Sheet / Drawer Modal Bawaan DaisyUI -->
+    <dialog id="sheetModal" class="modal modal-bottom sm:modal-middle">
+      <div class="modal-box bg-base-100">
+        <form method="dialog">
+          <button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">✕</button>
+        </form>
+        <h3 class="font-bold text-lg mb-4" id="sheetTitle">Judul</h3>
+        <div id="sheetBody"></div>
+      </div>
+      <form method="dialog" class="modal-backdrop">
+        <button>close</button>
+      </form>
+    </dialog>
+
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
