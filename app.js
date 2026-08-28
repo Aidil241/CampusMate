@@ -163,23 +163,16 @@ function computeIPK(){
    ============================================================ */
 function seedIfEmpty(){
   if(localStorage.getItem(DB.KEYS.seeded)) return;
-  const c1=uid(), c2=uid(), c3=uid(), c4=uid(), c5=uid();
-  DB.set(DB.KEYS.courses,[
-    {id:c1, name:'Pemrograman Web', lecturer:'Dr. Andi Wijaya, M.Kom', credits:3, room:'Lab RPL 2', notes:'Fokus HTML, CSS, JS.'},
-    {id:c2, name:'Basis Data Lanjut', lecturer:'Siti Rahma, M.Kom', credits:3, room:'R.301', notes:'Normalisasi & Query.'},
-    {id:c3, name:'Kecerdasan Buatan', lecturer:'Prof. Budi Santoso', credits:3, room:'R.204', notes:''},
-    {id:c4, name:'Manajemen Proyek TI', lecturer:'Rina Kartika, M.T.', credits:2, room:'R.105', notes:''},
-    {id:c5, name:'Bahasa Inggris Teknik', lecturer:'Mark Thompson, S.Pd.', credits:2, room:'R.010', notes:''}
-  ]);
+  
+  // Mengosongkan data awal
+  DB.set(DB.KEYS.courses, []);
+  DB.set(DB.KEYS.schedules, []);
+  DB.set(DB.KEYS.tasks, []);
+  DB.set(DB.KEYS.notes, []);
+  DB.set(DB.KEYS.grades, []);
 
-  DB.set(DB.KEYS.schedules,[
-    {id:uid(), course_id:c1, day:'Senin', start_time:'08:00', end_time:'10:30', room:'Lab RPL 2', notes:''},
-    {id:uid(), course_id:c2, day:'Senin', start_time:'13:00', end_time:'15:00', room:'R.301', notes:''},
-    {id:uid(), course_id:c3, day:'Selasa', start_time:'09:00', end_time:'11:30', room:'R.204', notes:'Bawa laptop'},
-    {id:uid(), course_id:c5, day:'Rabu', start_time:'10:00', end_time:'11:40', room:'R.010', notes:''},
-    {id:uid(), course_id:c4, day:'Kamis', start_time:'08:00', end_time:'09:40', room:'R.105', notes:''},
-    {id:uid(), course_id:c1, day:'Jumat', start_time:'13:00', end_time:'15:30', room:'Lab RPL 2', notes:'Praktikum'}
-  ]);
+  localStorage.setItem(DB.KEYS.seeded, '1');
+}
 
   const today = new Date();
   const plus = n => { const d=new Date(today); d.setDate(d.getDate()+n); return d.toISOString().slice(0,10); };
