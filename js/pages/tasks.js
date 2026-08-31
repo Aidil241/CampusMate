@@ -9,6 +9,7 @@ import { ICON } from '../utils/icons.js';
 import { esc, courseName, deadlineBadge, priorityBadgeClass } from '../utils/format.js';
 import { openSheet, closeSheet } from '../ui/sheet.js';
 import { render } from '../core/render.js';
+import { navigate } from '../core/router.js';
 
 export function pageTasks() {
   let list = DB.tasks.all();
@@ -31,7 +32,6 @@ export function pageTasks() {
     <div class="space-y-2">
       ${list.length ? list.map(t => {
         const b = deadlineBadge(t.deadline, t.status);
-        // Tambahkan class "task-item" di div bawah ini agar bisa disaring oleh fungsi pencarian
         return `<div class="task-item flex items-start gap-3 p-3 bg-base-100 border border-base-200 rounded-2xl shadow-sm transition-all">
           <input type="checkbox" ${t.status === 'Selesai' ? 'checked' : ''} onclick="App.toggleTask('${t.id}')" class="checkbox checkbox-sm checkbox-primary mt-0.5" />
           <div class="flex-1 min-w-0 cursor-pointer" onclick="App.editTask('${t.id}')">
@@ -56,57 +56,81 @@ App.toggleTask = (id) => {
 };
 App.editTask = (id) => openTaskForm(DB.tasks.find(id));
 
-export function openTaskForm(existing) {
-  const t = existing || { course_id: '', title: '', description: '', deadline: new Date().toISOString().slice(0, 10), priority: 'Sedang', status: 'Belum dikerjakan' };
-  openSheet(existing ? 'Edit Tugas' : 'Tambah Tugas', `
+window.openTaskForm = function(taskObj = null) {
+  const t = taskObj || { title: '', course_id: '', deadline: '', priority: 'Sedang', status: 'Belum dikerjakan' };
+
+  openSheet(taskObj ? 'Edit Tugas' : 'Tambah Tugas', `
     <div class="form-control gap-3 text-xs">
+      <div id="task_alert" class="hidden bg-error/20 border border-error text-error px-3 py-2 rounded-lg font-medium flex items-center gap-2 transition-all">
+        ⚠️ Peringatan: Judul Tugas wajib diisi!
+      </div>
       <div>
         <label class="label label-text font-bold">Judul Tugas</label>
-        <input id="f_title" class="input input-bordered input-sm w-full" value="${esc(t.title)}" />
+        <input id="f_t_title" class="input input-bordered input-sm w-full" value="${t.title || ''}" placeholder="Contoh: Membuat Makalah" />
       </div>
       <div>
-        <label class="label label-text font-bold">Mata Kuliah</label>
-        <select id="f_course" class="select select-bordered select-sm w-full">
-          <option value="">Umum</option>
-          ${DB.courses.all().map(c => `<option value="${c.id}" ${t.course_id === c.id ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}
-        </select>
-      </div>
-      <div class="grid grid-cols-2 gap-2">
-        <div>
-          <label class="label label-text font-bold">Deadline</label>
-          <input type="date" id="f_deadline" class="input input-bordered input-sm w-full" value="${t.deadline}" />
-        </div>
-        <div>
-          <label class="label label-text font-bold">Prioritas</label>
-          <select id="f_prio" class="select select-bordered select-sm w-full">
-            ${['Rendah', 'Sedang', 'Tinggi'].map(p => `<option ${t.priority === p ? 'selected' : ''}>${p}</option>`).join('')}
-          </select>
-        </div>
+        <label class="label label-text font-bold">ID / Mata Kuliah</label>
+        <input id="f_t_course" class="input input-bordered input-sm w-full" value="${t.course_id || ''}" placeholder="Contoh: IF101" />
       </div>
       <div>
-        <label class="label label-text font-bold">Status</label>
-        <select id="f_status" class="select select-bordered select-sm w-full">
-          ${['Belum dikerjakan', 'Sedang dikerjakan', 'Selesai'].map(s => `<option ${t.status === s ? 'selected' : ''}>${s}</option>`).join('')}
+        <label class="label label-text font-bold">Tenggat Waktu (Deadline)</label>
+        <!-- Menggunakan ID f_t_deadline agar cocok -->
+        <input type="date" id="f_t_deadline" class="input input-bordered input-sm w-full" value="${t.deadline || ''}" />
+      </div>
+      <div>
+        <label class="label label-text font-bold">Prioritas</label>
+        <select id="f_t_priority" class="select select-bordered select-sm w-full">
+          ${['Rendah', 'Sedang', 'Tinggi'].map(p => `<option value="${p}" ${t.priority === p ? 'selected' : ''}>${p}</option>`).join('')}
         </select>
       </div>
       <div class="flex gap-2 mt-4">
-        ${existing ? `<button class="btn btn-error btn-sm flex-1" id="btnDelT">${ICON.trash} Hapus</button>` : ''}
-        <button class="btn btn-primary btn-sm flex-1" id="btnSaveT">Simpan</button>
+        ${taskObj ? `<button class="btn btn-error btn-sm flex-1" id="btnDelTask">🗑️ Hapus</button>` : ''}
+        <button class="btn btn-primary btn-sm flex-1" id="btnSaveTask">Simpan</button>
       </div>
     </div>
   `);
 
-  document.getElementById('btnSaveT').onclick = () => {
-    const title = document.getElementById('f_title').value.trim();
-    if (!title) return;
+  document.getElementById('btnSaveTask').onclick = () => {
+    const title = document.getElementById('f_t_title').value.trim();
+    
+    if (!title) {
+      const alertBox = document.getElementById('task_alert');
+      alertBox.classList.remove('hidden');
+      setTimeout(() => { if(alertBox) alertBox.classList.add('hidden'); }, 3000);
+      return;
+    }
+
+    // Disimpan dengan properti 'deadline' agar sinkron dengan fungsi badge asli
     DB.tasks.save({
-      id: t.id, title,
-      course_id: document.getElementById('f_course').value,
-      deadline: document.getElementById('f_deadline').value,
-      priority: document.getElementById('f_prio').value,
-      status: document.getElementById('f_status').value
+      id: taskObj ? taskObj.id : undefined,
+      title,
+      course_id: document.getElementById('f_t_course').value,
+      deadline: document.getElementById('f_t_deadline').value,
+      priority: document.getElementById('f_t_priority').value,
+      status: t.status || 'Belum dikerjakan'
     });
-    closeSheet(); render();
+
+    closeSheet();
+    navigate('tasks'); 
   };
-  if (existing) document.getElementById('btnDelT').onclick = () => { DB.tasks.remove(t.id); closeSheet(); render(); };
+
+  if (taskObj) {
+    document.getElementById('btnDelTask').onclick = () => {
+      openSheet('Hapus Tugas', `
+        <div class="space-y-4 text-xs">
+          <p>Yakin ingin menghapus tugas <b>${taskObj.title}</b>?</p>
+          <div class="flex gap-2">
+            <button class="btn btn-neutral btn-sm flex-1" id="cancelDelTask">Batal</button>
+            <button class="btn btn-error btn-sm flex-1" id="confirmDelTask">Ya, Hapus</button>
+          </div>
+        </div>
+      `);
+      document.getElementById('cancelDelTask').onclick = () => window.openTaskForm(taskObj);
+      document.getElementById('confirmDelTask').onclick = () => {
+        DB.tasks.remove(taskObj.id);
+        closeSheet();
+        navigate('tasks');
+      };
+    };
+  }
 }

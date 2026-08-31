@@ -22,14 +22,40 @@ export function fmtTime(t) {
 }
 
 /** Badge status deadline (warna + teks) berdasarkan tanggal & status tugas. */
-export function deadlineBadge(dateStr, status) {
-  if (status === 'Selesai') return { cls: 'badge-success', text: 'Selesai' };
-  const diff = daysDiff(dateStr);
-  if (diff < 0) return { cls: 'badge-error', text: 'Terlambat ' + Math.abs(diff) + ' hr' };
-  if (diff === 0) return { cls: 'badge-error', text: 'Hari ini' };
-  if (diff === 1) return { cls: 'badge-warning', text: 'Besok' };
-  if (diff <= 3) return { cls: 'badge-warning', text: 'H-' + diff };
-  return { cls: 'badge-ghost', text: 'H-' + diff };
+export function deadlineBadge(deadlineDate, status) {
+  // Jika parameter yang dikirim berupa objek tugas (antisipasi beda penamaan properti)
+  const dateStr = typeof deadlineDate === 'object' ? (deadlineDate.due || deadlineDate.deadline) : deadlineDate;
+
+  if (!dateStr) {
+    return { cls: 'badge-ghost', text: 'Tanpa Deadline' };
+  }
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  
+  const targetDate = new Date(dateStr);
+  targetDate.setHours(0, 0, 0, 0);
+
+  const diffTime = targetDate - today;
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+  if (isNaN(diffDays)) {
+    return { cls: 'badge-ghost', text: '-' };
+  }
+
+  if (status === 'Selesai') {
+    return { cls: 'badge-success', text: 'Selesai' };
+  }
+
+  if (diffDays < 0) {
+    return { cls: 'bg-base-300 text-base-content/70 border-none', text: 'Terlambat' };
+  } else if (diffDays === 0) {
+    return { cls: 'badge-error animate-pulse', text: 'HARI INI!' };
+  } else if (diffDays <= 3) {
+    return { cls: 'badge-error', text: `${diffDays} Hari Lagi` };
+  } else {
+    return { cls: 'badge-warning', text: `${diffDays} Hari Lagi` };
+  }
 }
 
 export function priorityBadgeClass(p) {

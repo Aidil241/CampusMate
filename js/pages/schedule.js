@@ -10,6 +10,7 @@ import { esc, courseName, fmtTime } from '../utils/format.js';
 import { DAYS, todayDayName } from '../utils/date.js';
 import { openSheet, closeSheet } from '../ui/sheet.js';
 import { render } from '../core/render.js';
+import { navigate } from '../core/router.js';
 
 export function pageSchedule() {
   const all = DB.schedules.all();
@@ -36,42 +37,89 @@ export function pageSchedule() {
 App.setSchedDay = (d) => { state.schedDay = d; render(); };
 App.editSched = (id) => openScheduleForm(DB.schedules.find(id));
 
-export function openScheduleForm(existing) {
-  const s = existing || { course_id: '', day: todayDayName(), start_time: '08:00', end_time: '09:40', room: '' };
-  openSheet(existing ? 'Edit Jadwal' : 'Tambah Jadwal', `
+window.openScheduleForm = function(scheduleObj = null) {
+  const s = scheduleObj || { course_id: '', day: state.schedDay || 'Senin', start_time: '', end_time: '', room: '' };
+  const coursesList = DB.courses ? DB.courses.all() : [];
+
+  openSheet(scheduleObj ? 'Edit Jadwal' : 'Tambah Jadwal', `
     <div class="form-control gap-3 text-xs">
+      <div id="sch_alert" class="hidden bg-error/20 border border-error text-error px-3 py-2 rounded-lg font-medium flex items-center gap-2 transition-all">
+        ⚠️ Peringatan: Mata Kuliah wajib dipilih!
+      </div>
       <div>
         <label class="label label-text font-bold">Mata Kuliah</label>
-        <select id="f_course" class="select select-bordered select-sm w-full">
-          ${DB.courses.all().map(c => `<option value="${c.id}" ${s.course_id === c.id ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}
+        <select id="f_s_course" class="select select-bordered select-sm w-full">
+          <option value="">Pilih Mata Kuliah...</option>
+          ${coursesList.map(c => `<option value="${c.id}" ${s.course_id === c.id ? 'selected' : ''}>${c.name}</option>`).join('')}
         </select>
       </div>
       <div>
         <label class="label label-text font-bold">Hari</label>
-        <select id="f_day" class="select select-bordered select-sm w-full">
-          ${DAYS.map(d => `<option ${s.day === d ? 'selected' : ''}>${d}</option>`).join('')}
+        <select id="f_s_day" class="select select-bordered select-sm w-full">
+          ${DAYS.map(d => `<option value="${d}" ${s.day === d ? 'selected' : ''}>${d}</option>`).join('')}
         </select>
       </div>
       <div class="grid grid-cols-2 gap-2">
-        <div><label class="label label-text font-bold">Mulai</label><input type="time" id="f_start" class="input input-bordered input-sm w-full" value="${s.start_time}" /></div>
-        <div><label class="label label-text font-bold">Selesai</label><input type="time" id="f_end" class="input input-bordered input-sm w-full" value="${s.end_time}" /></div>
+        <div>
+          <label class="label label-text font-bold">Mulai</label>
+          <input type="time" id="f_s_start" class="input input-bordered input-sm w-full" value="${s.start_time || ''}" />
+        </div>
+        <div>
+          <label class="label label-text font-bold">Selesai</label>
+          <input type="time" id="f_s_end" class="input input-bordered input-sm w-full" value="${s.end_time || ''}" />
+        </div>
       </div>
-      <div><label class="label label-text font-bold">Ruangan</label><input id="f_room" class="input input-bordered input-sm w-full" value="${esc(s.room)}" /></div>
+      <div>
+        <label class="label label-text font-bold">Ruangan</label>
+        <input id="f_s_room" class="input input-bordered input-sm w-full" value="${s.room || ''}" placeholder="Contoh: Lab Komputer" />
+      </div>
       <div class="flex gap-2 mt-4">
-        ${existing ? `<button class="btn btn-error btn-sm flex-1" id="btnDelS">${ICON.trash} Hapus</button>` : ''}
-        <button class="btn btn-primary btn-sm flex-1" id="btnSaveS">Simpan</button>
+        ${scheduleObj ? `<button class="btn btn-error btn-sm flex-1" id="btnDelSch">🗑️ Hapus</button>` : ''}
+        <button class="btn btn-primary btn-sm flex-1" id="btnSaveSch">Simpan</button>
       </div>
     </div>
   `);
-  document.getElementById('btnSaveS').onclick = () => {
+
+  document.getElementById('btnSaveSch').onclick = () => {
+    const course_id = document.getElementById('f_s_course').value;
+    
+    if (!course_id) {
+      const alertBox = document.getElementById('sch_alert');
+      alertBox.classList.remove('hidden');
+      setTimeout(() => { if(alertBox) alertBox.classList.add('hidden'); }, 3000);
+      return;
+    }
+
     DB.schedules.save({
-      id: s.id, course_id: document.getElementById('f_course').value,
-      day: document.getElementById('f_day').value,
-      start_time: document.getElementById('f_start').value,
-      end_time: document.getElementById('f_end').value,
-      room: document.getElementById('f_room').value
+      id: scheduleObj ? scheduleObj.id : undefined,
+      course_id,
+      day: document.getElementById('f_s_day').value,
+      start_time: document.getElementById('f_s_start').value,
+      end_time: document.getElementById('f_s_end').value,
+      room: document.getElementById('f_s_room').value
     });
-    closeSheet(); render();
+
+    closeSheet();
+    navigate('schedule'); 
   };
-  if (existing) document.getElementById('btnDelS').onclick = () => { DB.schedules.remove(s.id); closeSheet(); render(); };
+
+  if (scheduleObj) {
+    document.getElementById('btnDelSch').onclick = () => {
+      openSheet('Hapus Jadwal', `
+        <div class="space-y-4 text-xs">
+          <p>Yakin ingin menghapus jadwal ini?</p>
+          <div class="flex gap-2">
+            <button class="btn btn-neutral btn-sm flex-1" id="cancelDelSch">Batal</button>
+            <button class="btn btn-error btn-sm flex-1" id="confirmDelSch">Ya, Hapus</button>
+          </div>
+        </div>
+      `);
+      document.getElementById('cancelDelSch').onclick = () => window.openScheduleForm(scheduleObj);
+      document.getElementById('confirmDelSch').onclick = () => {
+        DB.schedules.remove(scheduleObj.id);
+        closeSheet();
+        navigate('schedule');
+      };
+    };
+  }
 }
