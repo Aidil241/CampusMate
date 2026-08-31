@@ -16,7 +16,8 @@ const FAB_ACTIONS = {
   schedule: () => openScheduleForm(),
   courses: () => openCourseForm(),
   notes: () => openNoteForm(),
-  grades: () => openGradeForm()
+  grades: () => openGradeForm(),
+  exams: () => window.openExamForm(),
 };
 
 export function renderFab() {

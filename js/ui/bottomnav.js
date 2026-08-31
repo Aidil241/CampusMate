@@ -1,7 +1,6 @@
 /**
  * bottomnav.js
- * Navigasi bawah (Home, Tugas, Jadwal, Lainnya). "Lainnya" membuka sheet
- * berisi shortcut ke Mata Kuliah, Catatan, Nilai, dan Pengaturan.
+ * Navigasi bawah aplikasi.
  */
 import { state } from '../core/state.js';
 import { ICON } from '../utils/icons.js';
@@ -10,13 +9,16 @@ import { navigate } from '../core/router.js';
 
 export function renderBottomNav() {
   const nav = document.getElementById('bottomnav');
+  if (!nav) return;
+  
   const items = [
     { key: 'home', label: 'Home', icon: ICON.home },
     { key: 'tasks', label: 'Tugas', icon: ICON.tasks },
     { key: 'schedule', label: 'Jadwal', icon: ICON.calendar },
     { key: 'more', label: 'Lainnya', icon: ICON.grid }
   ];
-  const moreActive = ['courses', 'notes', 'grades', 'settings'].includes(state.route);
+  
+  const moreActive = ['courses', 'notes', 'grades', 'exams', 'settings'].includes(state.route);
 
   nav.innerHTML = items.map(it => {
     const active = it.key === 'more' ? moreActive : state.route === it.key;
@@ -46,7 +48,10 @@ function openMoreSheet() {
       <button data-go="grades" class="btn btn-neutral btn-outline flex flex-col h-auto py-4 items-center gap-2">
         <div class="text-warning">${ICON.award}</div><span class="text-xs">Nilai Akademik</span>
       </button>
-      <button data-go="settings" class="btn btn-neutral btn-outline flex flex-col h-auto py-4 items-center gap-2">
+      <button data-go="exams" class="btn btn-neutral btn-outline flex flex-col h-auto py-4 items-center gap-2">
+        <div class="text-error">📅</div><span class="text-xs">Jadwal Ujian</span>
+      </button>
+      <button data-go="settings" class="btn btn-neutral btn-outline flex flex-col h-auto py-4 items-center gap-2 col-span-2">
         <div class="text-error">${ICON.settings}</div><span class="text-xs">Pengaturan</span>
       </button>
     </div>
