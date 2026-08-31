@@ -1,6 +1,7 @@
 // js/pages/exams.js
 import { DB } from '../data/db.js';
 import { openSheet, closeSheet } from '../ui/sheet.js';
+import { navigate } from '../core/router.js'; // <-- Tambahan import navigate
 
 // Fungsi bantu untuk menghitung sisa hari
 function getDaysLeft(dateString) {
@@ -70,12 +71,19 @@ export function pageExams() {
   `;
 }
 
+// Fungsi global untuk form (bisa dipanggil dari onclick HTML)
 window.openExamForm = function(id = null) {
   const existing = id ? DB.exams.all().find(e => e.id === id) : null;
   const e = existing || {name: '', course: '', date: '', time: '', room: ''};
   
-  window.openSheet(existing ? 'Edit Ujian' : 'Tambah Ujian', `
+  openSheet(existing ? 'Edit Ujian' : 'Tambah Ujian', `
     <div class="form-control gap-3 text-xs">
+      
+      <!-- Box Peringatan Error (Awalnya Disembunyikan) -->
+      <div id="ex_alert" class="hidden bg-error/20 border border-error text-error px-3 py-2 rounded-lg font-medium flex items-center gap-2 transition-all">
+        ⚠️ Peringatan: Nama Ujian dan Tanggal wajib diisi!
+      </div>
+
       <div>
         <label class="label label-text font-bold">Nama Ujian (Misal: UTS/UAS)</label>
         <input id="f_ex_name" class="input input-bordered input-sm w-full" value="${e.name}" placeholder="Contoh: UTS Struktur Data" />
@@ -110,7 +118,17 @@ window.openExamForm = function(id = null) {
     const name = document.getElementById('f_ex_name').value.trim();
     const date = document.getElementById('f_ex_date').value;
     
-    if(!name || !date) return alert('Peringatan: Nama Ujian dan Tanggal wajib diisi!');
+    // Logika Error Baru yang lebih cantik
+    if(!name || !date) {
+      const alertBox = document.getElementById('ex_alert');
+      alertBox.classList.remove('hidden'); // Munculkan peringatan
+      
+      // Sembunyikan kembali secara otomatis setelah 3 detik
+      setTimeout(() => {
+        if(alertBox) alertBox.classList.add('hidden');
+      }, 3000);
+      return; // Hentikan proses simpan
+    }
     
     DB.exams.save({
       id: e.id, 
@@ -121,17 +139,28 @@ window.openExamForm = function(id = null) {
       room: document.getElementById('f_ex_room').value
     });
     
-    window.closeSheet(); 
-    window.location.reload(); // Memperbarui halaman secara aman
+    closeSheet(); 
+    navigate('exams'); 
   };
   
   if(existing) {
     document.getElementById('btnDelEx').onclick = () => { 
-      if(confirm('Yakin ingin menghapus jadwal ujian ini?')) {
+      openSheet('Hapus Ujian', `
+        <div class="space-y-4 text-xs">
+          <p>Yakin ingin menghapus jadwal ujian <b>${existing.name}</b>?</p>
+          <div class="flex gap-2">
+            <button class="btn btn-neutral btn-sm flex-1" id="cancelDel">Batal</button>
+            <button class="btn btn-error btn-sm flex-1" id="confirmDel">Ya, Hapus</button>
+          </div>
+        </div>
+      `);
+
+      document.getElementById('cancelDel').onclick = () => window.openExamForm(e.id);
+      document.getElementById('confirmDel').onclick = () => {
         DB.exams.remove(e.id); 
-        window.closeSheet(); 
-        window.location.reload(); 
-      }
+        closeSheet(); 
+        navigate('exams'); 
+      };
     };
   }
 }
