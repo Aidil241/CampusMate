@@ -17,6 +17,7 @@ import { pageCourses } from '../pages/courses.js';
 import { pageNotes } from '../pages/notes.js';
 import { pageGrades } from '../pages/grades.js';
 import { pageSettings } from '../pages/settings.js';
+import { pageExams } from '../pages/exams.js';
 
 const PAGES = {
   home: pageHome,
@@ -25,7 +26,8 @@ const PAGES = {
   courses: pageCourses,
   notes: pageNotes,
   grades: pageGrades,
-  settings: pageSettings
+  settings: pageSettings,
+  exams: pageExams
 };
 
 export function render() {

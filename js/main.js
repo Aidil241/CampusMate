@@ -15,7 +15,7 @@ import './core/router.js';
 import { seedIfEmpty } from './data/seed.js';
 import { applyTheme } from './ui/theme.js';
 import { render } from './core/render.js';
-
+import './pages/exams.js';
 seedIfEmpty();
 applyTheme();
 render();

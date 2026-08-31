@@ -81,6 +81,27 @@ export const DB = {
     remove(id) { DB.set(KEYS.tasks, DB.tasks.all().filter(t => t.id !== id)); }
   },
 
+  exams: {
+    all: () => JSON.parse(localStorage.getItem('cm_exams') || '[]'),
+    save: (exam) => {
+      const list = DB.exams.all();
+      // Jika data baru, buatkan ID unik
+      if (!exam.id) exam.id = 'ex_' + Date.now();
+      
+      const index = list.findIndex(e => e.id === exam.id);
+      if (index > -1) {
+        list[index] = exam; // Update jika sudah ada
+      } else {
+        list.push(exam); // Tambah baru
+      }
+      localStorage.setItem('cm_exams', JSON.stringify(list));
+    },
+    remove: (id) => {
+      const list = DB.exams.all().filter(e => e.id !== id);
+      localStorage.setItem('cm_exams', JSON.stringify(list));
+    }
+  },
+  
   notes: {
     all() { return get(KEYS.notes); },
     find(id) { return DB.notes.all().find(n => n.id === id); },
