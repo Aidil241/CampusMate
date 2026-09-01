@@ -19,6 +19,7 @@ import { pageGrades } from '../pages/grades.js';
 import { pageSettings } from '../pages/settings.js';
 import { pageExams } from '../pages/exams.js';
 import { pageStats } from '../pages/stats.js';
+import { pagePomodoro } from '../pages/pomodoro.js';
 
 const PAGES = {
   home: pageHome,
@@ -30,6 +31,7 @@ const PAGES = {
   settings: pageSettings,
   exams: pageExams,
   stats: pageStats,
+  pomodoro: pagePomodoro,
 };
 
 export function render() {
