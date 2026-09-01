@@ -5,6 +5,7 @@
 import { state } from '../core/state.js';
 import { DB } from '../data/db.js';
 import { render } from '../core/render.js';
+import { supabase } from '../data/supabase.js';
 
 export function pageSettings() {
   const settings = DB.settings ? DB.settings.get() : { name: 'Mahasiswa', dark: false };
@@ -58,6 +59,7 @@ export function pageSettings() {
         </div>
         <input type="checkbox" id="toggleDark" class="toggle toggle-primary toggle-sm" ${settings.dark ? 'checked' : ''} />
       </div>
+      <button onclick="App.handleLogout()" class="btn btn-error btn-outline btn-sm w-full mt-4">Keluar Akun (Logout)</button>
 
     </div>
   `;
@@ -79,6 +81,17 @@ App.saveProfile = () => {
 
   alert('Profil berhasil diperbarui! 🎉');
   render();
+};
+
+// Tambahkan fungsi logout ke App Namespace
+App.handleLogout = async () => {
+  const { error } = await supabase.auth.signOut();
+  if (!error) {
+    alert('Berhasil keluar akun.');
+    window.location.reload();
+  } else {
+    alert('Gagal keluar: ' + error.message);
+  }
 };
 
 App.exportData = () => {
