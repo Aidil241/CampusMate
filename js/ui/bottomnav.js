@@ -19,7 +19,7 @@ export function renderBottomNav() {
   ];
   
   // Tambahkan 'stats' agar menu "Lainnya" tetap aktif saat Anda membuka halaman Statistik
-  const moreActive = ['courses', 'notes', 'grades', 'exams', 'settings', 'stats'].includes(state.route);
+  const moreActive = ['courses', 'notes', 'grades', 'exams', 'settings', 'stats', 'pomodoro'].includes(state.route);
 
   nav.innerHTML = items.map(it => {
     const active = it.key === 'more' ? moreActive : state.route === it.key;
@@ -65,6 +65,9 @@ function openMoreSheet() {
 
       <button data-go="settings" class="btn btn-neutral btn-outline flex flex-col h-auto py-4 items-center gap-2">
         <div class="text-error">${ICON.settings}</div><span class="text-xs">Pengaturan</span>
+      </button>
+      <button data-go="pomodoro" class="btn btn-neutral btn-outline flex flex-col h-auto py-4 items-center gap-2">
+      <div class="text-secondary">🍅</div><span class="text-xs">Pomodoro</span>
       </button>
     </div>
   `);
