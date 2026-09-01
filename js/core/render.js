@@ -18,6 +18,7 @@ import { pageNotes } from '../pages/notes.js';
 import { pageGrades } from '../pages/grades.js';
 import { pageSettings } from '../pages/settings.js';
 import { pageExams } from '../pages/exams.js';
+import { pageStats } from '../pages/stats.js';
 
 const PAGES = {
   home: pageHome,
@@ -27,7 +28,8 @@ const PAGES = {
   notes: pageNotes,
   grades: pageGrades,
   settings: pageSettings,
-  exams: pageExams
+  exams: pageExams,
+  stats: pageStats,
 };
 
 export function render() {
