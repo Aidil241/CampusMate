@@ -1,6 +1,6 @@
 /**
  * pages/tasks.js
- * Halaman daftar tugas (dengan filter status & pencarian) + form tambah/edit tugas.
+ * Halaman daftar tugas (V2: dengan filter status, pencarian, & Tag/Kategori) + form tugas.
  */
 import { App } from '../core/app-namespace.js';
 import { state } from '../core/state.js';
@@ -11,9 +11,28 @@ import { openSheet, closeSheet } from '../ui/sheet.js';
 import { render } from '../core/render.js';
 import { navigate } from '../core/router.js';
 
+// Set state default untuk filter jika belum ada
+if (!state.taskFilterStatus) state.taskFilterStatus = 'Semua';
+if (!state.taskFilterTag) state.taskFilterTag = 'Semua';
+
 export function pageTasks() {
-  let list = DB.tasks.all();
-  if (state.taskFilterStatus !== 'Semua') list = list.filter(t => t.status === state.taskFilterStatus);
+  const allTasks = DB.tasks.all();
+  let list = [...allTasks];
+  
+  // MENGAMBIL TAG DINAMIS: Hanya ambil tag yang benar-benar dipakai di daftar tugas Anda
+  const usedTags = [...new Set(allTasks.map(t => t.tag || 'Umum'))];
+  const availableTags = ['Semua', ...usedTags];
+  
+  // 1. Terapkan Filter Status
+  if (state.taskFilterStatus !== 'Semua') {
+    list = list.filter(t => t.status === state.taskFilterStatus);
+  }
+  
+  // 2. Terapkan Filter Tag/Kategori
+  if (state.taskFilterTag !== 'Semua') {
+    list = list.filter(t => (t.tag || 'Umum') === state.taskFilterTag);
+  }
+
   return `
     <!-- Kolom Pencarian -->
     <div class="relative mb-3">
@@ -23,15 +42,36 @@ export function pageTasks() {
       <input type="text" placeholder="Cari judul tugas atau matkul..." class="input input-bordered input-sm w-full pl-9 bg-base-100" oninput="App.searchData(this.value, '.task-item')" />
     </div>
 
-    <div class="flex gap-2 overflow-x-auto pb-2 mb-4">
-      ${['Semua', 'Belum dikerjakan', 'Sedang dikerjakan', 'Selesai'].map(s => `
-        <button onclick="App.setTaskFilter('${s}')" class="btn btn-xs ${state.taskFilterStatus === s ? 'btn-primary' : 'btn-ghost border-base-300'}">${s}</button>
-      `).join('')}
+    <!-- Area Filter yang Dirapikan -->
+    <div class="mb-4 space-y-2 bg-base-100 border border-base-200 p-2.5 rounded-2xl shadow-sm">
+      
+      <!-- Baris Filter Status -->
+      <div class="flex items-center gap-2">
+        <span class="text-[9px] font-bold text-base-content/40 uppercase tracking-widest w-12 text-right">Status</span>
+        <div class="flex gap-1.5 overflow-x-auto flex-1 pb-1 scrollbar-hide">
+          ${['Semua', 'Belum dikerjakan', 'Sedang dikerjakan', 'Selesai'].map(s => `
+            <button onclick="App.setTaskFilterStatus('${s}')" class="btn btn-xs flex-shrink-0 rounded-full font-medium ${state.taskFilterStatus === s ? 'btn-primary' : 'btn-outline border-base-300 text-base-content/60 hover:bg-base-200'}">${s}</button>
+          `).join('')}
+        </div>
+      </div>
+
+      <!-- Baris Filter Tag (Sekarang Dinamis!) -->
+      <div class="flex items-center gap-2">
+        <span class="text-[9px] font-bold text-base-content/40 uppercase tracking-widest w-12 text-right">Kategori</span>
+        <div class="flex gap-1.5 overflow-x-auto flex-1 pb-1 scrollbar-hide">
+          ${availableTags.map(tg => `
+            <button onclick="App.setTaskFilterTag('${tg}')" class="btn btn-xs flex-shrink-0 rounded-full font-medium ${state.taskFilterTag === tg ? 'btn-secondary' : 'btn-outline border-base-300 text-base-content/60 hover:bg-base-200'}">${tg}</button>
+          `).join('')}
+        </div>
+      </div>
+      
     </div>
 
+    <!-- Daftar Tugas -->
     <div class="space-y-2">
       ${list.length ? list.map(t => {
         const b = deadlineBadge(t.deadline, t.status);
+        const tagLabel = t.tag || 'Umum';
         return `<div class="task-item flex items-start gap-3 p-3 bg-base-100 border border-base-200 rounded-2xl shadow-sm transition-all">
           <input type="checkbox" ${t.status === 'Selesai' ? 'checked' : ''} onclick="App.toggleTask('${t.id}')" class="checkbox checkbox-sm checkbox-primary mt-0.5" />
           <div class="flex-1 min-w-0 cursor-pointer" onclick="App.editTask('${t.id}')">
@@ -40,6 +80,7 @@ export function pageTasks() {
               <span class="text-[10px] text-base-content/60">${esc(courseName(t.course_id))}</span>
               <span class="badge ${b.cls} badge-xs font-semibold">${b.text}</span>
               <span class="badge ${priorityBadgeClass(t.priority)} badge-xs">${t.priority}</span>
+              <span class="badge badge-outline border-base-300 text-base-content/70 badge-xs">${esc(tagLabel)}</span>
             </div>
           </div>
         </div>`;
@@ -48,7 +89,8 @@ export function pageTasks() {
   `;
 }
 
-App.setTaskFilter = (s) => { state.taskFilterStatus = s; render(); };
+App.setTaskFilterStatus = (s) => { state.taskFilterStatus = s; render(); };
+App.setTaskFilterTag = (tg) => { state.taskFilterTag = tg; render(); };
 App.toggleTask = (id) => {
   const t = DB.tasks.find(id); if (!t) return;
   t.status = t.status === 'Selesai' ? 'Belum dikerjakan' : 'Selesai';
@@ -57,7 +99,7 @@ App.toggleTask = (id) => {
 App.editTask = (id) => openTaskForm(DB.tasks.find(id));
 
 window.openTaskForm = function(taskObj = null) {
-  const t = taskObj || { title: '', course_id: '', deadline: '', priority: 'Sedang', status: 'Belum dikerjakan' };
+  const t = taskObj || { title: '', course_id: '', deadline: '', priority: 'Sedang', status: 'Belum dikerjakan', tag: 'Umum' };
 
   openSheet(taskObj ? 'Edit Tugas' : 'Tambah Tugas', `
     <div class="form-control gap-3 text-xs">
@@ -72,11 +114,21 @@ window.openTaskForm = function(taskObj = null) {
         <label class="label label-text font-bold">ID / Mata Kuliah</label>
         <input id="f_t_course" class="input input-bordered input-sm w-full" value="${t.course_id || ''}" placeholder="Contoh: IF101" />
       </div>
-      <div>
-        <label class="label label-text font-bold">Tenggat Waktu (Deadline)</label>
-        <!-- Menggunakan ID f_t_deadline agar cocok -->
-        <input type="date" id="f_t_deadline" class="input input-bordered input-sm w-full" value="${t.deadline || ''}" />
+      
+      <!-- Layout Grid agar form tetap ringkas di layar HP -->
+      <div class="grid grid-cols-2 gap-2">
+        <div>
+          <label class="label label-text font-bold">Tenggat Waktu</label>
+          <input type="date" id="f_t_deadline" class="input input-bordered input-sm w-full" value="${t.deadline || ''}" />
+        </div>
+        <div>
+          <label class="label label-text font-bold">Tag / Jenis</label>
+          <select id="f_t_tag" class="select select-bordered select-sm w-full">
+            ${['Umum', 'Kelompok', 'Presentasi', 'Makalah', 'Proyek', 'Kuis'].map(tg => `<option value="${tg}" ${(t.tag || 'Umum') === tg ? 'selected' : ''}>${tg}</option>`).join('')}
+          </select>
+        </div>
       </div>
+
       <div>
         <label class="label label-text font-bold">Prioritas</label>
         <select id="f_t_priority" class="select select-bordered select-sm w-full">
@@ -100,13 +152,13 @@ window.openTaskForm = function(taskObj = null) {
       return;
     }
 
-    // Disimpan dengan properti 'deadline' agar sinkron dengan fungsi badge asli
     DB.tasks.save({
       id: taskObj ? taskObj.id : undefined,
       title,
       course_id: document.getElementById('f_t_course').value,
       deadline: document.getElementById('f_t_deadline').value,
       priority: document.getElementById('f_t_priority').value,
+      tag: document.getElementById('f_t_tag').value, // Simpan tag ke database
       status: t.status || 'Belum dikerjakan'
     });
 
