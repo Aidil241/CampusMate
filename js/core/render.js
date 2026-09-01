@@ -1,8 +1,6 @@
 /**
  * render.js
- * Titik pusat re-render aplikasi. Dipanggil ulang setiap kali ada
- * perubahan data atau navigasi. Pola render-nya sederhana:
- * hitung ulang HTML dari data terbaru, lalu timpa innerHTML #page.
+ * Titik pusat re-render aplikasi dengan Proteksi Auth Supabase
  */
 import { state } from './state.js';
 import { DB } from '../data/db.js';
@@ -10,6 +8,8 @@ import { applyTheme } from '../ui/theme.js';
 import { renderTopbar } from '../ui/topbar.js';
 import { renderBottomNav } from '../ui/bottomnav.js';
 import { renderFab } from '../ui/fab.js';
+import { supabase } from '../data/supabase.js'; // <-- Import supabase
+
 import { pageHome } from '../pages/home.js';
 import { pageTasks } from '../pages/tasks.js';
 import { pageSchedule } from '../pages/schedule.js';
@@ -20,6 +20,7 @@ import { pageSettings } from '../pages/settings.js';
 import { pageExams } from '../pages/exams.js';
 import { pageStats } from '../pages/stats.js';
 import { pagePomodoro } from '../pages/pomodoro.js';
+import { pageAuth } from '../pages/auth.js'; // <-- Import halaman auth
 
 const PAGES = {
   home: pageHome,
@@ -32,16 +33,43 @@ const PAGES = {
   exams: pageExams,
   stats: pageStats,
   pomodoro: pagePomodoro,
+  auth: pageAuth // <-- Daftarkan rute auth
 };
 
-export function render() {
+// Variabel status login global sederhana
+let currentUser = null;
+
+export async function render() {
+  // Cek sesi user yang sedang login di Supabase
+  const { data: { session } } = await supabase.auth.getSession();
+  currentUser = session ? session.user : null;
+
+  // Jika belum login, paksa rute ke halaman 'auth'
+  if (!currentUser) {
+    state.route = 'auth';
+    
+    // Amankan pembersihan elemen agar tidak error jika elemennya tidak ada
+    const topbarEl = document.getElementById('topbar');
+    const bottomNavEl = document.getElementById('bottom-nav');
+    const fabEl = document.getElementById('fab');
+    
+    if (topbarEl) topbarEl.innerHTML = '';
+    if (bottomNavEl) bottomNavEl.innerHTML = '';
+    if (fabEl) fabEl.innerHTML = '';
+    
+    const page = document.getElementById('page');
+    if (page) page.innerHTML = pageAuth();
+    return;
+  }
+
+  // Jika sudah login, render normal seperti biasa
   applyTheme();
   renderTopbar();
   renderBottomNav();
 
   const page = document.getElementById('page');
   const renderPage = PAGES[state.route] || pageHome;
-  page.innerHTML = renderPage();
+  if (page) page.innerHTML = renderPage();
 
   renderFab();
   bindEvents();
