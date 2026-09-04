@@ -1,20 +1,53 @@
 /**
  * pages/schedule.js
- * Halaman jadwal mingguan (per hari) + form tambah/edit jadwal.
+ * Halaman jadwal mingguan (per hari) + form tambah/edit jadwal (Supabase Edition).
  */
 import { App } from '../core/app-namespace.js';
 import { state } from '../core/state.js';
-import { DB } from '../data/db.js';
+import { supabase } from '../data/supabase.js';
 import { ICON } from '../utils/icons.js';
-import { esc, courseName, fmtTime } from '../utils/format.js';
-import { DAYS, todayDayName } from '../utils/date.js';
+import { esc, fmtTime } from '../utils/format.js';
+import { DAYS } from '../utils/date.js';
 import { openSheet, closeSheet } from '../ui/sheet.js';
 import { render } from '../core/render.js';
-import { navigate } from '../core/router.js';
+
+let schedulesCache = [];
+let coursesCache = [];
+let isFetching = false;
+
+// Fungsi untuk menarik data jadwal & mata kuliah terbaru dari Supabase
+async function fetchScheduleData() {
+  if (isFetching) return;
+  isFetching = true;
+
+  const [schRes, crsRes] = await Promise.all([
+    supabase.from('schedules').select('*').order('start_time', { ascending: true }),
+    supabase.from('courses').select('*').order('created_at', { ascending: false })
+  ]);
+
+  if (!schRes.error && schRes.data) schedulesCache = schRes.data;
+  if (!crsRes.error && crsRes.data) coursesCache = crsRes.data;
+
+  isFetching = false;
+  render();
+}
+
+// Panggil saat file pertama kali dimuat
+fetchScheduleData();
+
+// Helper untuk mencari nama mata kuliah berdasarkan ID dari cache
+function getCourseName(courseId) {
+  const found = coursesCache.find(c => c.id === courseId);
+  return found ? found.name : 'Mata Kuliah Dihapus';
+}
 
 export function pageSchedule() {
-  const all = DB.schedules.all();
-  const list = all.filter(s => s.day === state.schedDay);
+  if (!schedulesCache.length && !isFetching) {
+    fetchScheduleData();
+  }
+
+  const list = schedulesCache.filter(s => s.day === state.schedDay);
+
   return `
     <div class="flex gap-1 overflow-x-auto pb-2 mb-4">
       ${DAYS.map(d => `<button onclick="App.setSchedDay('${d}')" class="btn btn-xs ${state.schedDay === d ? 'btn-primary' : 'btn-ghost border-base-300'}">${d}</button>`).join('')}
@@ -26,7 +59,7 @@ export function pageSchedule() {
             ${fmtTime(sc.start_time)}<small class="block text-[9px] text-base-content/50">${fmtTime(sc.end_time)}</small>
           </div>
           <div class="flex-1 min-w-0">
-            <h4 class="font-bold text-xs truncate">${esc(courseName(sc.course_id))}</h4>
+            <h4 class="font-bold text-xs truncate">${esc(getCourseName(sc.course_id))}</h4>
             <p class="text-[11px] text-base-content/60">${esc(sc.room || '-')}</p>
           </div>
         </div>
@@ -34,12 +67,15 @@ export function pageSchedule() {
     </div>
   `;
 }
+
 App.setSchedDay = (d) => { state.schedDay = d; render(); };
-App.editSched = (id) => openScheduleForm(DB.schedules.find(id));
+App.editSched = (id) => {
+  const scheduleObj = schedulesCache.find(s => s.id === id);
+  window.openScheduleForm(scheduleObj);
+};
 
 window.openScheduleForm = function(scheduleObj = null) {
   const s = scheduleObj || { course_id: '', day: state.schedDay || 'Senin', start_time: '', end_time: '', room: '' };
-  const coursesList = DB.courses ? DB.courses.all() : [];
 
   openSheet(scheduleObj ? 'Edit Jadwal' : 'Tambah Jadwal', `
     <div class="form-control gap-3 text-xs">
@@ -50,7 +86,7 @@ window.openScheduleForm = function(scheduleObj = null) {
         <label class="label label-text font-bold">Mata Kuliah</label>
         <select id="f_s_course" class="select select-bordered select-sm w-full">
           <option value="">Pilih Mata Kuliah...</option>
-          ${coursesList.map(c => `<option value="${c.id}" ${s.course_id === c.id ? 'selected' : ''}>${c.name}</option>`).join('')}
+          ${coursesCache.map(c => `<option value="${c.id}" ${s.course_id === c.id ? 'selected' : ''}>${c.name}</option>`).join('')}
         </select>
       </div>
       <div>
@@ -80,7 +116,7 @@ window.openScheduleForm = function(scheduleObj = null) {
     </div>
   `);
 
-  document.getElementById('btnSaveSch').onclick = () => {
+  document.getElementById('btnSaveSch').onclick = async () => {
     const course_id = document.getElementById('f_s_course').value;
     
     if (!course_id) {
@@ -90,21 +126,29 @@ window.openScheduleForm = function(scheduleObj = null) {
       return;
     }
 
-    DB.schedules.save({
-      id: scheduleObj ? scheduleObj.id : undefined,
+    const payload = {
       course_id,
       day: document.getElementById('f_s_day').value,
       start_time: document.getElementById('f_s_start').value,
       end_time: document.getElementById('f_s_end').value,
       room: document.getElementById('f_s_room').value
-    });
+    };
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) payload.user_id = user.id;
+
+    if (scheduleObj && scheduleObj.id) {
+      await supabase.from('schedules').update(payload).eq('id', scheduleObj.id);
+    } else {
+      await supabase.from('schedules').insert([payload]);
+    }
 
     closeSheet();
-    navigate('schedule'); 
+    fetchScheduleData();
   };
 
   if (scheduleObj) {
-    document.getElementById('btnDelSch').onclick = () => {
+    document.getElementById('btnDelSch').onclick = async () => {
       openSheet('Hapus Jadwal', `
         <div class="space-y-4 text-xs">
           <p>Yakin ingin menghapus jadwal ini?</p>
@@ -115,11 +159,14 @@ window.openScheduleForm = function(scheduleObj = null) {
         </div>
       `);
       document.getElementById('cancelDelSch').onclick = () => window.openScheduleForm(scheduleObj);
-      document.getElementById('confirmDelSch').onclick = () => {
-        DB.schedules.remove(scheduleObj.id);
+      document.getElementById('confirmDelSch').onclick = async () => {
+        await supabase.from('schedules').delete().eq('id', scheduleObj.id);
         closeSheet();
-        navigate('schedule');
+        fetchScheduleData();
       };
     };
   }
 }
+
+// Tambahkan tombol global untuk membuka form tambah jadwal jika dibutuhkan UI
+App.openScheduleForm = () => window.openScheduleForm(null);
