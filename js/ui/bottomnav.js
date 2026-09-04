@@ -18,7 +18,6 @@ export function renderBottomNav() {
     { key: 'more', label: 'Lainnya', icon: ICON.grid }
   ];
   
-  // Tambahkan 'stats' agar menu "Lainnya" tetap aktif saat Anda membuka halaman Statistik
   const moreActive = ['courses', 'notes', 'grades', 'exams', 'settings', 'stats', 'pomodoro'].includes(state.route);
 
   nav.innerHTML = items.map(it => {
@@ -53,7 +52,6 @@ function openMoreSheet() {
         <div class="text-error">📅</div><span class="text-xs">Jadwal Ujian</span>
       </button>
       
-      <!-- Tombol Statistik menggunakan format data-go yang seragam -->
       <button data-go="stats" class="btn btn-neutral btn-outline flex flex-col h-auto py-4 items-center gap-2">
         <div class="text-primary">
           <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -67,11 +65,10 @@ function openMoreSheet() {
         <div class="text-error">${ICON.settings}</div><span class="text-xs">Pengaturan</span>
       </button>
       <button data-go="pomodoro" class="btn btn-neutral btn-outline flex flex-col h-auto py-4 items-center gap-2">
-      <div class="text-secondary">🍅</div><span class="text-xs">Pomodoro</span>
+        <div class="text-secondary">🍅</div><span class="text-xs">Pomodoro</span>
       </button>
     </div>
   `);
   
-  // Baris ini secara otomatis akan menutup sheet DAN memindahkan halaman sesuai data-go
   document.querySelectorAll('[data-go]').forEach(el => el.onclick = () => { closeSheet(); navigate(el.dataset.go); });
 }
