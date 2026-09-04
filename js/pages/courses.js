@@ -1,6 +1,6 @@
 /**
  * pages/courses.js
- * Halaman daftar mata kuliah + form tambah/edit mata kuliah (Supabase Edition).
+ * Halaman daftar mata kuliah + form tambah/edit mata kuliah (Sync + Supabase).
  */
 import { App } from '../core/app-namespace.js';
 import { supabase } from '../data/supabase.js';
@@ -9,13 +9,29 @@ import { esc } from '../utils/format.js';
 import { openSheet, closeSheet } from '../ui/sheet.js';
 import { render } from '../core/render.js';
 
-// Simpan data courses sementara di memori lokal halaman
 let coursesCache = [];
+let isFetching = false;
 
-export async function pageCourses() {
-  // Ambil data dari Supabase
+// Fungsi untuk menarik data terbaru dari Supabase di background
+async function fetchCoursesFromCloud() {
+  if (isFetching) return;
+  isFetching = true;
   const { data, error } = await supabase.from('courses').select('*').order('created_at', { ascending: false });
-  if (!error) coursesCache = data || [];
+  if (!error && data) {
+    coursesCache = data;
+    render(); // Render ulang tampilan setelah data cloud didapat
+  }
+  isFetching = false;
+}
+
+// Panggil saat pertama kali file dimuat
+fetchCoursesFromCloud();
+
+export function pageCourses() {
+  // Jika cache kosong dan belum mengambil, trigger fetch
+  if (!coursesCache.length && !isFetching) {
+    fetchCoursesFromCloud();
+  }
 
   return `
     <!-- Kolom Pencarian -->
@@ -106,14 +122,14 @@ export function openCourseForm(existing) {
     }
 
     closeSheet(); 
-    render();
+    fetchCoursesFromCloud(); // Ambil ulang data terbaru ke cache
   };
 
   if (existing) {
     document.getElementById('btnDelC').onclick = async () => {
       await supabase.from('courses').delete().eq('id', existing.id);
       closeSheet(); 
-      render();
+      fetchCoursesFromCloud(); // Ambil ulang data terbaru ke cache
     };
   }
 }
