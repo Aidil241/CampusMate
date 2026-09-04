@@ -1,9 +1,37 @@
-// js/pages/exams.js
-import { DB } from '../data/db.js';
+/**
+ * pages/exams.js
+ * Halaman jadwal ujian (Supabase Edition) dengan relasi mata kuliah dinamis.
+ */
+import { supabase } from '../data/supabase.js';
 import { openSheet, closeSheet } from '../ui/sheet.js';
-import { navigate } from '../core/router.js'; // <-- Tambahan import navigate
+import { render } from '../core/render.js';
+import { esc } from '../utils/format.js';
 
-// Fungsi bantu untuk menghitung sisa hari
+let examsCache = [];
+let coursesCache = [];
+let isFetching = false;
+
+// Fungsi untuk menarik data ujian dan mata kuliah dari Supabase
+async function fetchExamsData() {
+  if (isFetching) return;
+  isFetching = true;
+
+  const [examRes, crsRes] = await Promise.all([
+    supabase.from('exams').select('*').order('exam_date', { ascending: true }),
+    supabase.from('courses').select('*').order('created_at', { ascending: false })
+  ]);
+
+  if (!examRes.error && examRes.data) examsCache = examRes.data;
+  if (!crsRes.error && crsRes.data) coursesCache = crsRes.data;
+
+  isFetching = false;
+  render();
+}
+
+// Panggil saat pertama kali dimuat
+fetchExamsData();
+
+// Helper untuk menghitung sisa hari
 function getDaysLeft(dateString) {
   if (!dateString) return null;
   const examDate = new Date(dateString);
@@ -13,14 +41,18 @@ function getDaysLeft(dateString) {
   return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 }
 
-// 1. PASTIKAN ADA KATA KUNCI 'export' DI SINI
-export function pageExams() {
-  const list = DB.exams.all();
-  
-  // Mengurutkan ujian berdasarkan tanggal yang paling dekat
-  list.sort((a, b) => new Date(a.date) - new Date(b.date));
+// Helper untuk mencari nama mata kuliah berdasarkan ID
+function getCourseName(courseId) {
+  const found = coursesCache.find(c => c.id === courseId);
+  return found ? found.name : '-';
+}
 
-  if (list.length === 0) {
+export function pageExams() {
+  if (!examsCache.length && !isFetching) {
+    fetchExamsData();
+  }
+
+  if (examsCache.length === 0) {
     return `
       <div class="space-y-3">
         <div class="text-center p-8 border border-dashed border-base-300 rounded-2xl text-xs text-base-content/50">
@@ -30,8 +62,8 @@ export function pageExams() {
     `;
   }
 
-  const examsHtml = list.map(e => {
-    const daysLeft = getDaysLeft(e.date);
+  const examsHtml = examsCache.map(e => {
+    const daysLeft = getDaysLeft(e.exam_date);
     let badgeClass = 'badge-primary';
     let textDays = daysLeft + ' Hari Lagi';
     
@@ -47,16 +79,16 @@ export function pageExams() {
       badgeClass = 'badge-warning';
     }
 
+    const formattedDate = e.exam_date ? new Date(e.exam_date).toLocaleDateString('id-ID', {day:'numeric', month:'short', year:'numeric'}) : '';
+
     return `
       <div onclick="window.openExamForm('${e.id}')" class="flex items-center gap-3 p-3 bg-base-100 border border-base-200 rounded-2xl shadow-sm cursor-pointer transition-all hover:border-primary/30">
-        <div class="p-3 bg-error/10 text-error rounded-xl">
-          📅
-        </div>
+        <div class="p-3 bg-error/10 text-error rounded-xl">📅</div>
         <div class="flex-1 min-w-0">
-          <h4 class="font-bold text-sm">${e.name}</h4>
-          <p class="text-xs text-base-content/60">${e.course} • ${e.room || '-'}</p>
+          <h4 class="font-bold text-sm">${esc(e.title)}</h4>
+          <p class="text-xs text-base-content/60">${esc(getCourseName(e.course_id))} • ${esc(e.room || '-')}</p>
           <p class="text-xs text-base-content/80 mt-0.5 font-medium">
-            ${e.date ? new Date(e.date).toLocaleDateString('id-ID', {day:'numeric', month:'short', year:'numeric'}) : ''} | ${e.time}
+            ${formattedDate} ${e.exam_date && e.exam_date.includes('T') ? '| ' + e.exam_date.split('T')[1].substring(0,5) : ''}
           </p>
         </div>
         <div class="badge ${badgeClass} badge-sm font-bold shadow-sm whitespace-nowrap">${textDays}</div>
@@ -71,40 +103,38 @@ export function pageExams() {
   `;
 }
 
-// Fungsi global untuk form (bisa dipanggil dari onclick HTML)
+// Fungsi global untuk form ujian
 window.openExamForm = function(id = null) {
-  const existing = id ? DB.exams.all().find(e => e.id === id) : null;
-  const e = existing || {name: '', course: '', date: '', time: '', room: ''};
+  const existing = id ? examsCache.find(e => e.id === id) : null;
+  const e = existing || { title: '', course_id: '', exam_date: '', room: '' };
   
+  // Format tanggal untuk input type="date"
+  const dateVal = e.exam_date ? e.exam_date.split('T')[0] : '';
+
   openSheet(existing ? 'Edit Ujian' : 'Tambah Ujian', `
     <div class="form-control gap-3 text-xs">
-      
-      <!-- Box Peringatan Error (Awalnya Disembunyikan) -->
       <div id="ex_alert" class="hidden bg-error/20 border border-error text-error px-3 py-2 rounded-lg font-medium flex items-center gap-2 transition-all">
         ⚠️ Peringatan: Nama Ujian dan Tanggal wajib diisi!
       </div>
 
       <div>
         <label class="label label-text font-bold">Nama Ujian (Misal: UTS/UAS)</label>
-        <input id="f_ex_name" class="input input-bordered input-sm w-full" value="${e.name}" placeholder="Contoh: UTS Struktur Data" />
+        <input id="f_ex_title" class="input input-bordered input-sm w-full" value="${esc(e.title || '')}" placeholder="Contoh: UTS Struktur Data" />
       </div>
       <div>
         <label class="label label-text font-bold">Mata Kuliah</label>
-        <input id="f_ex_course" class="input input-bordered input-sm w-full" value="${e.course}" placeholder="Contoh: Struktur Data" />
+        <select id="f_ex_course" class="select select-bordered select-sm w-full">
+          <option value="">Pilih Mata Kuliah...</option>
+          ${coursesCache.map(c => `<option value="${c.id}" ${e.course_id === c.id ? 'selected' : ''}>${c.name}</option>`).join('')}
+        </select>
       </div>
-      <div class="grid grid-cols-2 gap-2">
-        <div>
-          <label class="label label-text font-bold">Tanggal</label>
-          <input type="date" id="f_ex_date" class="input input-bordered input-sm w-full" value="${e.date}" />
-        </div>
-        <div>
-          <label class="label label-text font-bold">Waktu</label>
-          <input type="time" id="f_ex_time" class="input input-bordered input-sm w-full" value="${e.time}" />
-        </div>
+      <div>
+        <label class="label label-text font-bold">Tanggal & Waktu Ujian</label>
+        <input type="datetime-local" id="f_ex_date" class="input input-bordered input-sm w-full" value="${e.exam_date ? e.exam_date.substring(0,16) : ''}" />
       </div>
       <div>
         <label class="label label-text font-bold">Ruangan / Link</label>
-        <input id="f_ex_room" class="input input-bordered input-sm w-full" value="${e.room}" />
+        <input id="f_ex_room" class="input input-bordered input-sm w-full" value="${esc(e.room || '')}" placeholder="Contoh: Lab Komputer / Zoom" />
       </div>
       
       <div class="flex gap-2 mt-4">
@@ -114,40 +144,42 @@ window.openExamForm = function(id = null) {
     </div>
   `);
   
-  document.getElementById('btnSaveEx').onclick = () => {
-    const name = document.getElementById('f_ex_name').value.trim();
-    const date = document.getElementById('f_ex_date').value;
+  document.getElementById('btnSaveEx').onclick = async () => {
+    const title = document.getElementById('f_ex_title').value.trim();
+    const exam_date = document.getElementById('f_ex_date').value;
     
-    // Logika Error Baru yang lebih cantik
-    if(!name || !date) {
+    if(!title || !exam_date) {
       const alertBox = document.getElementById('ex_alert');
-      alertBox.classList.remove('hidden'); // Munculkan peringatan
-      
-      // Sembunyikan kembali secara otomatis setelah 3 detik
-      setTimeout(() => {
-        if(alertBox) alertBox.classList.add('hidden');
-      }, 3000);
-      return; // Hentikan proses simpan
+      alertBox.classList.remove('hidden');
+      setTimeout(() => { if(alertBox) alertBox.classList.add('hidden'); }, 3000);
+      return;
     }
     
-    DB.exams.save({
-      id: e.id, 
-      name, 
-      course: document.getElementById('f_ex_course').value, 
-      date,
-      time: document.getElementById('f_ex_time').value,
+    const payload = {
+      title,
+      course_id: document.getElementById('f_ex_course').value || null,
+      exam_date,
       room: document.getElementById('f_ex_room').value
-    });
+    };
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) payload.user_id = user.id;
+
+    if (existing && existing.id) {
+      await supabase.from('exams').update(payload).eq('id', existing.id);
+    } else {
+      await supabase.from('exams').insert([payload]);
+    }
     
     closeSheet(); 
-    navigate('exams'); 
+    fetchExamsData();
   };
   
   if(existing) {
     document.getElementById('btnDelEx').onclick = () => { 
       openSheet('Hapus Ujian', `
         <div class="space-y-4 text-xs">
-          <p>Yakin ingin menghapus jadwal ujian <b>${existing.name}</b>?</p>
+          <p>Yakin ingin menghapus jadwal ujian <b>${esc(existing.title)}</b>?</p>
           <div class="flex gap-2">
             <button class="btn btn-neutral btn-sm flex-1" id="cancelDel">Batal</button>
             <button class="btn btn-error btn-sm flex-1" id="confirmDel">Ya, Hapus</button>
@@ -155,12 +187,15 @@ window.openExamForm = function(id = null) {
         </div>
       `);
 
-      document.getElementById('cancelDel').onclick = () => window.openExamForm(e.id);
-      document.getElementById('confirmDel').onclick = () => {
-        DB.exams.remove(e.id); 
+      document.getElementById('cancelDel').onclick = () => window.openExamForm(existing.id);
+      document.getElementById('confirmDel').onclick = async () => {
+        await supabase.from('exams').delete().eq('id', existing.id);
         closeSheet(); 
-        navigate('exams'); 
+        fetchExamsData();
       };
     };
   }
-}
+};
+
+// Tombol global pembuka form ujian
+App.openExamForm = () => window.openExamForm(null);

@@ -1,26 +1,58 @@
 /**
  * pages/tasks.js
- * Halaman daftar tugas (V2: dengan filter status, pencarian, & Tag/Kategori) + form tugas.
+ * Halaman daftar tugas (Supabase Edition): filter status, pencarian, tag, & pilihan mata kuliah dinamis.
  */
 import { App } from '../core/app-namespace.js';
 import { state } from '../core/state.js';
-import { DB } from '../data/db.js';
+import { supabase } from '../data/supabase.js';
 import { ICON } from '../utils/icons.js';
-import { esc, courseName, deadlineBadge, priorityBadgeClass } from '../utils/format.js';
+import { esc, deadlineBadge, priorityBadgeClass } from '../utils/format.js';
 import { openSheet, closeSheet } from '../ui/sheet.js';
 import { render } from '../core/render.js';
-import { navigate } from '../core/router.js';
+
+let tasksCache = [];
+let coursesCache = [];
+let isFetching = false;
 
 // Set state default untuk filter jika belum ada
 if (!state.taskFilterStatus) state.taskFilterStatus = 'Semua';
 if (!state.taskFilterTag) state.taskFilterTag = 'Semua';
 
+// Fungsi untuk mengambil data tugas dan mata kuliah dari Supabase
+async function fetchTasksData() {
+  if (isFetching) return;
+  isFetching = true;
+
+  const [taskRes, crsRes] = await Promise.all([
+    supabase.from('tasks').select('*').order('deadline', { ascending: true }),
+    supabase.from('courses').select('*').order('created_at', { ascending: false })
+  ]);
+
+  if (!taskRes.error && taskRes.data) tasksCache = taskRes.data;
+  if (!crsRes.error && crsRes.data) coursesCache = crsRes.data;
+
+  isFetching = false;
+  render();
+}
+
+// Panggil saat pertama kali dimuat
+fetchTasksData();
+
+// Helper untuk mencari nama mata kuliah berdasarkan ID
+function getCourseName(courseId) {
+  const found = coursesCache.find(c => c.id === courseId);
+  return found ? found.name : '-';
+}
+
 export function pageTasks() {
-  const allTasks = DB.tasks.all();
-  let list = [...allTasks];
+  if (!tasksCache.length && !isFetching) {
+    fetchTasksData();
+  }
+
+  let list = [...tasksCache];
   
-  // MENGAMBIL TAG DINAMIS: Hanya ambil tag yang benar-benar dipakai di daftar tugas Anda
-  const usedTags = [...new Set(allTasks.map(t => t.tag || 'Umum'))];
+  // MENGAMBIL TAG DINAMIS
+  const usedTags = [...new Set(tasksCache.map(t => t.tag || 'Umum'))];
   const availableTags = ['Semua', ...usedTags];
   
   // 1. Terapkan Filter Status
@@ -37,12 +69,12 @@ export function pageTasks() {
     <!-- Kolom Pencarian -->
     <div class="relative mb-3">
       <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-base-content/50">
-        ${ICON.search}
+        ${ICON.search || '🔍'}
       </div>
       <input type="text" placeholder="Cari judul tugas atau matkul..." class="input input-bordered input-sm w-full pl-9 bg-base-100" oninput="App.searchData(this.value, '.task-item')" />
     </div>
 
-    <!-- Area Filter yang Dirapikan -->
+    <!-- Area Filter -->
     <div class="mb-4 space-y-2 bg-base-100 border border-base-200 p-2.5 rounded-2xl shadow-sm">
       
       <!-- Baris Filter Status -->
@@ -55,7 +87,7 @@ export function pageTasks() {
         </div>
       </div>
 
-      <!-- Baris Filter Tag (Sekarang Dinamis!) -->
+      <!-- Baris Filter Tag -->
       <div class="flex items-center gap-2">
         <span class="text-[9px] font-bold text-base-content/40 uppercase tracking-widest w-12 text-right">Kategori</span>
         <div class="flex gap-1.5 overflow-x-auto flex-1 pb-1 scrollbar-hide">
@@ -77,26 +109,34 @@ export function pageTasks() {
           <div class="flex-1 min-w-0 cursor-pointer" onclick="App.editTask('${t.id}')">
             <h4 class="font-bold text-xs ${t.status === 'Selesai' ? 'line-through opacity-40' : ''}">${esc(t.title)}</h4>
             <div class="flex gap-1.5 mt-1 flex-wrap items-center">
-              <span class="text-[10px] text-base-content/60">${esc(courseName(t.course_id))}</span>
+              <span class="text-[10px] text-base-content/60">${esc(getCourseName(t.course_id))}</span>
               <span class="badge ${b.cls} badge-xs font-semibold">${b.text}</span>
               <span class="badge ${priorityBadgeClass(t.priority)} badge-xs">${t.priority}</span>
               <span class="badge badge-outline border-base-300 text-base-content/70 badge-xs">${esc(tagLabel)}</span>
             </div>
           </div>
         </div>`;
-      }).join('') : `<div class="text-center p-8 border border-dashed border-base-300 rounded-2xl text-xs text-base-content/50">${ICON.empty}Belum ada tugas</div>`}
+      }).join('') : `<div class="text-center p-8 border border-dashed border-base-300 rounded-2xl text-xs text-base-content/50">${ICON.empty || '📂'}Belum ada tugas</div>`}
     </div>
   `;
 }
 
 App.setTaskFilterStatus = (s) => { state.taskFilterStatus = s; render(); };
 App.setTaskFilterTag = (tg) => { state.taskFilterTag = tg; render(); };
-App.toggleTask = (id) => {
-  const t = DB.tasks.find(id); if (!t) return;
-  t.status = t.status === 'Selesai' ? 'Belum dikerjakan' : 'Selesai';
-  DB.tasks.save(t); render();
+
+App.toggleTask = async (id) => {
+  const t = tasksCache.find(item => item.id === id);
+  if (!t) return;
+  const newStatus = t.status === 'Selesai' ? 'Belum dikerjakan' : 'Selesai';
+  
+  await supabase.from('tasks').update({ status: newStatus }).eq('id', id);
+  fetchTasksData();
 };
-App.editTask = (id) => openTaskForm(DB.tasks.find(id));
+
+App.editTask = (id) => {
+  const taskObj = tasksCache.find(item => item.id === id);
+  window.openTaskForm(taskObj);
+};
 
 window.openTaskForm = function(taskObj = null) {
   const t = taskObj || { title: '', course_id: '', deadline: '', priority: 'Sedang', status: 'Belum dikerjakan', tag: 'Umum' };
@@ -108,18 +148,20 @@ window.openTaskForm = function(taskObj = null) {
       </div>
       <div>
         <label class="label label-text font-bold">Judul Tugas</label>
-        <input id="f_t_title" class="input input-bordered input-sm w-full" value="${t.title || ''}" placeholder="Contoh: Membuat Makalah" />
+        <input id="f_t_title" class="input input-bordered input-sm w-full" value="${esc(t.title || '')}" placeholder="Contoh: Membuat Makalah" />
       </div>
       <div>
-        <label class="label label-text font-bold">ID / Mata Kuliah</label>
-        <input id="f_t_course" class="input input-bordered input-sm w-full" value="${t.course_id || ''}" placeholder="Contoh: IF101" />
+        <label class="label label-text font-bold">Mata Kuliah</label>
+        <select id="f_t_course" class="select select-bordered select-sm w-full">
+          <option value="">Pilih Mata Kuliah...</option>
+          ${coursesCache.map(c => `<option value="${c.id}" ${t.course_id === c.id ? 'selected' : ''}>${c.name}</option>`).join('')}
+        </select>
       </div>
       
-      <!-- Layout Grid agar form tetap ringkas di layar HP -->
       <div class="grid grid-cols-2 gap-2">
         <div>
           <label class="label label-text font-bold">Tenggat Waktu</label>
-          <input type="date" id="f_t_deadline" class="input input-bordered input-sm w-full" value="${t.deadline || ''}" />
+          <input type="date" id="f_t_deadline" class="input input-bordered input-sm w-full" value="${t.deadline ? t.deadline.split('T')[0] : ''}" />
         </div>
         <div>
           <label class="label label-text font-bold">Tag / Jenis</label>
@@ -142,7 +184,7 @@ window.openTaskForm = function(taskObj = null) {
     </div>
   `);
 
-  document.getElementById('btnSaveTask').onclick = () => {
+  document.getElementById('btnSaveTask').onclick = async () => {
     const title = document.getElementById('f_t_title').value.trim();
     
     if (!title) {
@@ -152,25 +194,33 @@ window.openTaskForm = function(taskObj = null) {
       return;
     }
 
-    DB.tasks.save({
-      id: taskObj ? taskObj.id : undefined,
+    const payload = {
       title,
-      course_id: document.getElementById('f_t_course').value,
-      deadline: document.getElementById('f_t_deadline').value,
+      course_id: document.getElementById('f_t_course').value || null,
+      deadline: document.getElementById('f_t_deadline').value || null,
       priority: document.getElementById('f_t_priority').value,
-      tag: document.getElementById('f_t_tag').value, // Simpan tag ke database
+      tag: document.getElementById('f_t_tag').value,
       status: t.status || 'Belum dikerjakan'
-    });
+    };
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) payload.user_id = user.id;
+
+    if (taskObj && taskObj.id) {
+      await supabase.from('tasks').update(payload).eq('id', taskObj.id);
+    } else {
+      await supabase.from('tasks').insert([payload]);
+    }
 
     closeSheet();
-    navigate('tasks'); 
+    fetchTasksData();
   };
 
   if (taskObj) {
-    document.getElementById('btnDelTask').onclick = () => {
+    document.getElementById('btnDelTask').onclick = async () => {
       openSheet('Hapus Tugas', `
         <div class="space-y-4 text-xs">
-          <p>Yakin ingin menghapus tugas <b>${taskObj.title}</b>?</p>
+          <p>Yakin ingin menghapus tugas <b>${esc(taskObj.title)}</b>?</p>
           <div class="flex gap-2">
             <button class="btn btn-neutral btn-sm flex-1" id="cancelDelTask">Batal</button>
             <button class="btn btn-error btn-sm flex-1" id="confirmDelTask">Ya, Hapus</button>
@@ -178,11 +228,13 @@ window.openTaskForm = function(taskObj = null) {
         </div>
       `);
       document.getElementById('cancelDelTask').onclick = () => window.openTaskForm(taskObj);
-      document.getElementById('confirmDelTask').onclick = () => {
-        DB.tasks.remove(taskObj.id);
+      document.getElementById('confirmDelTask').onclick = async () => {
+        await supabase.from('tasks').delete().eq('id', taskObj.id);
         closeSheet();
-        navigate('tasks');
+        fetchTasksData();
       };
     };
   }
 }
+
+App.openTaskForm = () => window.openTaskForm(null);
