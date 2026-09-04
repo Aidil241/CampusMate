@@ -13,7 +13,6 @@ let notesCache = [];
 let coursesCache = [];
 let isFetching = false;
 
-// Ambil data catatan dan mata kuliah dari Supabase
 async function fetchNotesData() {
   if (isFetching) return;
   isFetching = true;
@@ -30,10 +29,8 @@ async function fetchNotesData() {
   render();
 }
 
-// Panggil saat pertama kali dimuat
 fetchNotesData();
 
-// Helper untuk mencari nama mata kuliah
 function getCourseName(courseId) {
   if (!courseId) return 'Umum';
   const found = coursesCache.find(c => c.id === courseId);
@@ -60,10 +57,11 @@ export function pageNotes() {
 
 App.editNote = (id) => {
   const existing = notesCache.find(n => n.id === id);
-  window.openNoteForm(existing);
+  openNoteForm(existing);
 };
 
-window.openNoteForm = function(existing = null) {
+// EKSPOR DI SINI AGAR TIDAK ERROR DI FAB.JS
+export function openNoteForm(existing = null) {
   const n = existing || { course_id: '', title: '', content: '' };
   
   openSheet(existing ? 'Edit Catatan' : 'Tambah Catatan', `
@@ -123,6 +121,4 @@ window.openNoteForm = function(existing = null) {
       fetchNotesData();
     };
   }
-};
-
-App.openNoteForm = () => window.openNoteForm(null);
+}

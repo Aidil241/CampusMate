@@ -129,7 +129,8 @@ App.toggleTask = async (id) => {
   if (!t) return;
   const newStatus = t.status === 'Selesai' ? 'Belum dikerjakan' : 'Selesai';
   
-  await supabase.from('tasks').update({ status: newStatus }).eq('id', id);
+  // Tambahkan .select() di akhir untuk mencegah error 400 columns
+  await supabase.from('tasks').update({ status: newStatus }).eq('id', id).select();
   fetchTasksData();
 };
 
@@ -194,9 +195,13 @@ window.openTaskForm = function(taskObj = null) {
       return;
     }
 
+    // Ambil nilai course_id, ubah string kosong menjadi null agar tidak error UUID
+    const rawCourseId = document.getElementById('f_t_course').value;
+    const course_id = (rawCourseId && rawCourseId.trim() !== "") ? rawCourseId : null;
+
     const payload = {
       title,
-      course_id: document.getElementById('f_t_course').value || null,
+      course_id: course_id,
       deadline: document.getElementById('f_t_deadline').value || null,
       priority: document.getElementById('f_t_priority').value,
       tag: document.getElementById('f_t_tag').value,
@@ -206,35 +211,24 @@ window.openTaskForm = function(taskObj = null) {
     const { data: { user } } = await supabase.auth.getUser();
     if (user) payload.user_id = user.id;
 
+    let error = null;
+
     if (taskObj && taskObj.id) {
-      await supabase.from('tasks').update(payload).eq('id', taskObj.id);
+      const res = await supabase.from('tasks').update(payload).eq('id', taskObj.id);
+      error = res.error;
     } else {
-      await supabase.from('tasks').insert([payload]);
+      const res = await supabase.from('tasks').insert([payload]);
+      error = res.error;
+    }
+
+    if (error) {
+      alert('Gagal menyimpan tugas: ' + error.message);
+      return;
     }
 
     closeSheet();
     fetchTasksData();
   };
-
-  if (taskObj) {
-    document.getElementById('btnDelTask').onclick = async () => {
-      openSheet('Hapus Tugas', `
-        <div class="space-y-4 text-xs">
-          <p>Yakin ingin menghapus tugas <b>${esc(taskObj.title)}</b>?</p>
-          <div class="flex gap-2">
-            <button class="btn btn-neutral btn-sm flex-1" id="cancelDelTask">Batal</button>
-            <button class="btn btn-error btn-sm flex-1" id="confirmDelTask">Ya, Hapus</button>
-          </div>
-        </div>
-      `);
-      document.getElementById('cancelDelTask').onclick = () => window.openTaskForm(taskObj);
-      document.getElementById('confirmDelTask').onclick = async () => {
-        await supabase.from('tasks').delete().eq('id', taskObj.id);
-        closeSheet();
-        fetchTasksData();
-      };
     };
-  }
-}
 
 App.openTaskForm = () => window.openTaskForm(null);
