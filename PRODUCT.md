@@ -1,7 +1,4 @@
 # Produk
-
-> Dokumen ini menjelaskan **apa** produknya dan **untuk siapa**. Aturan visual (warna, tipografi, komponen, elevasi, anti-pola) ada di [`DESIGN.md`](DESIGN.md).
-
 ## Platform
 
 Android
